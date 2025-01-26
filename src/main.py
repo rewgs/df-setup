@@ -41,9 +41,10 @@ def get_dots(dotfiles_dir: Path) -> list[Dot]:
                 else:
                     return matches[0]
 
-    dots: list[Dot] = []
     dirs: list[Path] = [ dir for dir in dotfiles_dir.iterdir() if dir.is_dir() and any(file for file in dir.iterdir() if file.is_file() and file.stem == "setup") ]
-    for d in dirs:
+
+    dots: list[Dot] = []
+    for d in sorted(dirs):
         setup_script = get_setup_script(d)
         if setup_script is not None:
             dot = Dot(name=d.name, 
@@ -54,32 +55,40 @@ def get_dots(dotfiles_dir: Path) -> list[Dot]:
 
 
 def get_dotfiles_dir(args) -> Path:
-    if len(args) == 0:
-        dotfiles_dir = Path(__file__).parent.parent.resolve(strict=True)
-        if dotfiles_dir.name != "dotfiles":
-            raise FileNotFoundError
-        return dotfiles_dir
-    elif len(args) == 1:
-        return Path(args[0]).resolve(strict=True)
+    match len(args):
+        case 1:
+            dotfiles: Path = Path.home().joinpath("dotfiles")
+        case 2:
+            dotfiles: Path = Path(args[1]).resolve(strict=True)
+        case _:
+            print("Too many arguments!")
+            exit()
+    try:
+        resolved: Path = dotfiles.resolve(strict=True)
+    except FileNotFoundError as error:
+        raise error
     else:
-        print("Too many arguments!")
-        exit()
+        return resolved
 
 
 def main():
     dotfiles_dir: Path = get_dotfiles_dir(sys.argv)
     dots: list[Dot] = get_dots(dotfiles_dir)
-    failed: list[Dot] = []
 
     for dot in dots:
-        result = dot.setup()
-        if isinstance(result, CalledProcessError):
-            failed.append(dot)
+        print(dot.name)
 
-    if len(failed) > 0:
-        print("The following dots failed to setup:")
-        for f in failed:
-            print(f.name)
+    # failed: list[Dot] = []
+    #
+    # for dot in dots:
+    #     result = dot.setup()
+    #     if isinstance(result, CalledProcessError):
+    #         failed.append(dot)
+    #
+    # if len(failed) > 0:
+    #     print("The following dots failed to setup:")
+    #     for f in failed:
+    #         print(f.name)
 
 
 if __name__ == "__main__":
