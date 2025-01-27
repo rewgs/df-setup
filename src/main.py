@@ -99,15 +99,13 @@ def main():
     dots: list[Dot] = get_dots(dotfiles_dir)
 
     for dot in dots:
-        print(dot.install_script)
+        print(dot)
 
     # failed: list[Dot] = []
-    #
     # for dot in dots:
     #     result = dot.setup()
     #     if isinstance(result, CalledProcessError):
     #         failed.append(dot)
-    #
     # if len(failed) > 0:
     #     print("The following dots failed to setup:")
     #     for f in failed:
