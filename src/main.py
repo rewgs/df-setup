@@ -14,43 +14,66 @@ class Config:
     operating_systems: list[str]
 
 
-@dataclass
 class Dot:
-    name: str
-    path: Path
-    setup_script: Path
+    def __init__(self, name: str, path: Path):
+        self._install_script: Path|None
+        self._setup_script: Path|None
+        self.name: str = name
+        self.path: Path = path
 
-    def setup(self) -> CalledProcessError|CompletedProcess:
-        result: CalledProcessError|CompletedProcess = run(self.setup_script, check=True)
-        return result
+        self._install_script = self.__get_script("install")
+        self._setup_script = self.__get_script("setup")
+
+    @property
+    def install_script(self) -> Path|None:
+        return self._install_script
+
+    @install_script.setter
+    def install_script(self, value: Path) -> None:
+        self._install_script = value
+
+    @property
+    def setup_script(self) -> Path|None:
+        return self._setup_script
+
+    @setup_script.setter
+    def setup_script(self, value: Path) -> None:
+        self._setup_script = value
+
+    def setup(self, install: bool=False) -> CalledProcessError|CompletedProcess|None:
+        if install:
+            try:
+                _ = self._install()
+            except CalledProcessError as error:
+                raise error
+        if self.setup_script is not None:
+            result: CalledProcessError|CompletedProcess = run(self.setup_script, check=True)
+            return result
+        return None
+
+    def _install(self) -> CalledProcessError|CompletedProcess|None:
+        if self.install_script is not None:
+            result: CalledProcessError|CompletedProcess = run(self.install_script, check=True)
+            return result
+        return None
+
+    def __get_script(self, name: str) -> Path|None:
+        match system():
+            case "Windows":
+                matches: list[Path] = [ file for file in self.path.iterdir() if file.is_file() and (file.name == f"{name}.ps1" or file.name == f"{name}.py") ]
+                if len(matches) != 1:
+                    return None
+                return matches[0]
+            case _:
+                matches: list[Path] = [ file for file in self.path.iterdir() if file.is_file() and (file.name == f"{name}.sh" or file.name == f"{name}.py") ]
+                if len(matches) != 1:
+                    return None
+                return matches[0]
 
 
 def get_dots(dotfiles_dir: Path) -> list[Dot]:
-    def get_setup_script(dir: Path) -> Path|None:
-        match system():
-            case "Windows":
-                matches: list[Path] = [ file for file in dir.iterdir() if file.is_file() and (file.name == "setup.ps1" or file.name == "setup.py") ]
-                if len(matches) != 1:
-                    return None
-                else:
-                    return matches[0]
-            case _:
-                matches: list[Path] = [ file for file in dir.iterdir() if file.is_file() and (file.name == "setup.sh" or file.name == "setup.py") ]
-                if len(matches) != 1:
-                    return None
-                else:
-                    return matches[0]
-
     dirs: list[Path] = [ dir for dir in dotfiles_dir.iterdir() if dir.is_dir() and any(file for file in dir.iterdir() if file.is_file() and file.stem == "setup") ]
-
-    dots: list[Dot] = []
-    for d in sorted(dirs):
-        setup_script = get_setup_script(d)
-        if setup_script is not None:
-            dot = Dot(name=d.name, 
-                      path=d, 
-                      setup_script=setup_script)
-            dots.append(dot)
+    dots: list[Dot] = [ Dot(name=dir.name, path=dir) for dir in sorted(dirs) ]
     return dots
 
 
@@ -76,7 +99,7 @@ def main():
     dots: list[Dot] = get_dots(dotfiles_dir)
 
     for dot in dots:
-        print(dot.name)
+        print(dot.install_script)
 
     # failed: list[Dot] = []
     #
