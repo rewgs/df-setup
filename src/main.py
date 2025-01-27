@@ -1,6 +1,7 @@
 import sys
 
 from dataclasses import dataclass
+from functools import cache
 from pathlib import Path
 from platform import system
 from subprocess import run, CalledProcessError, CompletedProcess
@@ -105,6 +106,7 @@ def get_dotfiles_dir(args) -> Path:
         return resolved
 
 
+@cache
 def get_dots(dotfiles_dir: Path) -> list[Dot]:
     dirs: list[Path] = [ dir for dir in dotfiles_dir.iterdir() if dir.is_dir() and any(file for file in dir.iterdir() if file.is_file() and file.stem == "setup") ]
     dots: list[Dot] = [ Dot(name=dir.name, path=dir) for dir in sorted(dirs) ]
@@ -112,22 +114,30 @@ def get_dots(dotfiles_dir: Path) -> list[Dot]:
 
 
 def apply_config(config: Config, dots: list[Dot]) -> tuple[list[Dot], list[Dot]]:
-    to_setup: list[Dot] = []
-    for dot in dots:
-        for app in config.to_setup:
-            if app.name == dot.name:
-                dot.to_install = app.to_install
-                to_setup.append(dot)
+    def get_dots_from_config(config: Config, dots: list[Dot]) -> list[Dot]:
+        to_setup: list[Dot] = []
+        for dot in dots:
+            for app in config.to_setup:
+                if app.name == dot.name:
+                    dot.to_install = app.to_install
+                    to_setup.append(dot)
+        return to_setup
 
-    failed: list[Dot] = []
-    succeeded: list[Dot] = []
-    for dot in to_setup:
-        result = dot.setup()
-        if isinstance(result, CalledProcessError):
-            failed.append(dot)
-        elif isinstance(result, CompletedProcess):
-            succeeded.append(dot)
-    return failed, succeeded
+    def setup_dots(dots: list[Dot]) -> tuple[list[Dot], list[Dot]]:
+        failed: list[Dot] = []
+        succeeded: list[Dot] = []
+        for dot in to_setup:
+            result = dot.setup()
+            if isinstance(result, CalledProcessError):
+                failed.append(dot)
+            elif isinstance(result, CompletedProcess):
+                succeeded.append(dot)
+        return failed, succeeded
+
+    to_setup: list[Dot] = get_dots_from_config(config, dots)
+    # for dot in to_setup:
+    #     print(dot.name)
+    return setup_dots(to_setup)
 
 
 def postflight(failed: list[Dot], succeeded: list[Dot]) -> None:
@@ -145,8 +155,8 @@ def main():
     dotfiles_dir: Path = get_dotfiles_dir(sys.argv)
     dots: list[Dot] = get_dots(dotfiles_dir)
 
-    for dot in dots:
-        print(dot.name)
+    # for dot in dots:
+    #     print(dot.name)
 
     apps = [
         App(name="nvim", to_install=False),
@@ -159,7 +169,8 @@ def main():
                     to_setup=apps, 
                     operating_systems={"Linux"})
 
-    # failed, succeeded = apply_config(config, dots); postflight(failed, succeeded)
+    failed, succeeded = apply_config(config, dots)
+    postflight(failed, succeeded)
 
 
 if __name__ == "__main__":
