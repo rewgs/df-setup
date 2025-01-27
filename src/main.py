@@ -59,9 +59,9 @@ class Dot:
         """ Sets up the dotfiles of the application in question. Installs beforehand if instructed. """
         if self.to_install and self.install_script is not None:
             install_result = self._install()
+            # FIXME: This isn't great, because if this function returns CalledProcessError or None, 
+            # I won't know if it's due to the installation or setup process.
             if install_result is None or isinstance(install_result, CalledProcessError):
-                # FIXME: This isn't great, because if this function returns CalledProcessError or None, 
-                # I won't know if it's due to the installation or setup process.
                 return install_result
         if self.setup_script is not None:
             setup_result: CalledProcessError|CompletedProcess = run(self.setup_script, check=True)
@@ -88,12 +88,6 @@ class Dot:
                 return matches[0]
 
 
-def get_dots(dotfiles_dir: Path) -> list[Dot]:
-    dirs: list[Path] = [ dir for dir in dotfiles_dir.iterdir() if dir.is_dir() and any(file for file in dir.iterdir() if file.is_file() and file.stem == "setup") ]
-    dots: list[Dot] = [ Dot(name=dir.name, path=dir) for dir in sorted(dirs) ]
-    return dots
-
-
 def get_dotfiles_dir(args) -> Path:
     match len(args):
         case 1:
@@ -109,6 +103,12 @@ def get_dotfiles_dir(args) -> Path:
         raise error
     else:
         return resolved
+
+
+def get_dots(dotfiles_dir: Path) -> list[Dot]:
+    dirs: list[Path] = [ dir for dir in dotfiles_dir.iterdir() if dir.is_dir() and any(file for file in dir.iterdir() if file.is_file() and file.stem == "setup") ]
+    dots: list[Dot] = [ Dot(name=dir.name, path=dir) for dir in sorted(dirs) ]
+    return dots
 
 
 def apply_config(config: Config, dots: list[Dot]) -> tuple[list[Dot], list[Dot]]:
@@ -130,6 +130,17 @@ def apply_config(config: Config, dots: list[Dot]) -> tuple[list[Dot], list[Dot]]
     return failed, succeeded
 
 
+def postflight(failed: list[Dot], succeeded: list[Dot]) -> None:
+    if len(failed) > 0:
+        print("The following applications failed to install or setup:")
+        for dot in failed:
+            print(dot.name)
+    if len(succeeded) > 0:
+        print("The following applications succeeded setup:")
+        for dot in succeeded:
+            print(dot.name)
+
+
 def main():
     dotfiles_dir: Path = get_dotfiles_dir(sys.argv)
     dots: list[Dot] = get_dots(dotfiles_dir)
@@ -148,15 +159,7 @@ def main():
                     to_setup=apps, 
                     operating_systems={"Linux"})
 
-    # failed, succeeded = apply_config(config, dots)
-    # if len(failed) > 0:
-    #     print("The following applications failed to install or setup:")
-    #     for dot in failed:
-    #         print(dot.name)
-    # if len(succeeded) > 0:
-    #     print("The following applications succeeded setup:")
-    #     for dot in succeeded:
-    #         print(dot.name)
+    # failed, succeeded = apply_config(config, dots); postflight(failed, succeeded)
 
 
 if __name__ == "__main__":
