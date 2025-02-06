@@ -9,12 +9,17 @@ from subprocess import run, CalledProcessError, CompletedProcess
 
 @dataclass
 class App:
+    """
+    An App represents an application that, if listed as part of a Config, 
+    will be installed/setup/etc as specified via its corresponding Dot.
+    """
     name: str
     to_install: bool=False
 
 
 @dataclass
 class Config:
+    """A Config is a collection of Dots to be installed/setup/etc for a target machine."""
     name: str
     to_setup: list[App]
     operating_systems: set[str]
@@ -22,6 +27,7 @@ class Config:
 
 
 class Dot:
+    """A Dot represents a single application that is configured via dotfiles."""
     def __init__(self, name: str, path: Path):
         self._install_script: Path|None
         self._setup_script: Path|None
@@ -153,15 +159,19 @@ def postflight(failed: list[Dot], succeeded: list[Dot]) -> None:
 
 def main():
     dotfiles_dir: Path = get_dotfiles_dir(sys.argv)
+
+    # TODO: Should only be getting Dots of Apps specified in Config, rather than *all* of them as I'm doing here.
     dots: list[Dot] = get_dots(dotfiles_dir)
 
     # for dot in dots:
     #     print(dot.name)
 
     apps = [
+        App(name="bash", to_install=False),
         App(name="nvim", to_install=False),
-        App(name="starship", to_install=False),
+        App(name="starship", to_install=True),
         App(name="tmux", to_install=False),
+        App(name="vim", to_install=False),
         App(name="zsh", to_install=False),
     ]
 
